@@ -38,6 +38,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   );
   const [hasMonthlyTarget, setHasMonthlyTarget] = useState(settings.monthlyTargetKwh !== undefined);
   const [targetNature, setTargetNature] = useState<TargetNature>(settings.targetNature || 'ceiling');
+  const [billingCutoffDay, setBillingCutoffDay] = useState(
+    settings.billingCutoffDay !== undefined ? settings.billingCutoffDay.toString() : ''
+  );
   const [savedNotice, setSavedNotice] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
 
@@ -46,6 +49,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const tNum = parseFloat(tariff);
     const dailyTargetNum = parseFloat(dailyTarget);
     const monthlyTargetNum = parseFloat(monthlyTarget);
+    const cutoffNum = parseInt(billingCutoffDay, 10);
 
     onUpdateSettings({
       tariffPerKwh: !isNaN(tNum) && tNum >= 0 ? tNum : settings.tariffPerKwh,
@@ -53,6 +57,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       dailyTargetKwh: !isNaN(dailyTargetNum) && dailyTargetNum > 0 ? dailyTargetNum : settings.dailyTargetKwh,
       monthlyTargetKwh: hasMonthlyTarget && !isNaN(monthlyTargetNum) && monthlyTargetNum > 0 ? monthlyTargetNum : undefined,
       targetNature,
+      billingCutoffDay: !isNaN(cutoffNum) && cutoffNum >= 1 && cutoffNum <= 31 ? cutoffNum : undefined,
     });
 
     setSavedNotice(true);
@@ -271,6 +276,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 className="w-full bg-transparent text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none"
               />
               <span className="text-xs font-semibold text-slate-400">kWh/d</span>
+            </div>
+          </div>
+
+          {/* Billing cutoff day Input */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">
+              Día de corte
+            </label>
+            <div className="flex items-center bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 px-4 py-2.5">
+              <input
+                type="number"
+                min="1"
+                max="31"
+                placeholder="Fin de mes (calendario)"
+                value={billingCutoffDay}
+                onChange={(e) => setBillingCutoffDay(e.target.value)}
+                className="w-full bg-transparent text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none"
+              />
+              <span className="text-xs font-semibold text-slate-400">del mes</span>
             </div>
           </div>
 

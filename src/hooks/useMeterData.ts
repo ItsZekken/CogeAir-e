@@ -7,6 +7,7 @@ import {
   calculateSummary,
   calculateWeekdayDistribution,
   getMonthName,
+  getBillingPeriodInfo,
 } from '../utils/calculations';
 import type { PeriodSummary, WeekdayStats } from '../utils/calculations';
 import {
@@ -244,23 +245,30 @@ export function useMeterData() {
     return processedReadings[processedReadings.length - 1];
   }, [processedReadings]);
 
-  // Dynamic grouping by month (descending: newest first)
+  // Dynamic grouping by billing cycle / month (descending: newest first)
   const availableMonths = useMemo(() => {
     const map = new Map<string, DailyDataPoint[]>();
     for (const p of dailySeries) {
-      const mKey = p.date.slice(0, 7);
+      const periodInfo = getBillingPeriodInfo(p.date, settings.billingCutoffDay);
+      const mKey = periodInfo.key;
       if (!map.has(mKey)) map.set(mKey, []);
       map.get(mKey)!.push(p);
     }
     const keys = Array.from(map.keys()).sort((a, b) => b.localeCompare(a));
-    return keys.map((key) => ({
-      key,
-      name: getMonthName(key),
-      label: `${getMonthName(key)} ${key.slice(0, 4)}`,
-      summary: calculateSummary(map.get(key)!),
-      points: map.get(key)!,
-    }));
-  }, [dailySeries]);
+    return keys.map((key) => {
+      const points = map.get(key)!;
+      const sampleDate = points[points.length - 1].date;
+      const periodInfo = getBillingPeriodInfo(sampleDate, settings.billingCutoffDay);
+      return {
+        key,
+        name: periodInfo.name,
+        label: periodInfo.label,
+        summary: calculateSummary(points),
+        points,
+        periodInfo,
+      };
+    });
+  }, [dailySeries, settings.billingCutoffDay]);
 
   // Active month (most recent in data, or current calendar month if no data yet)
   const activeMonthData = useMemo(() => {
@@ -296,17 +304,20 @@ export function useMeterData() {
   const currentProjection = useMemo(() => {
     if (!activeMonthData || activeMonthData.points.length === 0) return null;
 
-    const [yStr, mStr] = activeMonthData.key.split('-');
-    const year = parseInt(yStr, 10);
-    const month = parseInt(mStr, 10);
-    const daysTotal = new Date(year, month, 0).getDate();
+    const latestPoint = activeMonthData.points[activeMonthData.points.length - 1];
+    const periodInfo = activeMonthData.periodInfo || getBillingPeriodInfo(latestPoint.date, settings.billingCutoffDay);
+    const daysTotal = periodInfo.totalDays;
 
-    // Determine days elapsed up to the latest point recorded in this month
-    const latestDayInMonth = parseInt(
-      activeMonthData.points[activeMonthData.points.length - 1].date.slice(8),
-      10
-    );
-    const daysElapsed = Math.max(activeMonthData.points.length, latestDayInMonth);
+    // Determine days elapsed from cycle startDate to latest point in this cycle
+    const latestDate = latestPoint.date;
+    const [ly, lm, ld] = latestDate.split('-').map(Number);
+    const [sy, sm, sd] = periodInfo.startDate.split('-').map(Number);
+    const latestD = new Date(ly, lm - 1, ld);
+    const startD = new Date(sy, sm - 1, sd);
+    const diffTime = latestD.getTime() - startD.getTime();
+    const daysElapsedFromStart = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+    const daysElapsed = Math.min(daysTotal, Math.max(activeMonthData.points.length, daysElapsedFromStart));
     const currentKwh = activeMonthData.summary.totalKwh;
     const dailyAvg = daysElapsed > 0 ? currentKwh / daysElapsed : 0;
     const daysRemaining = Math.max(0, daysTotal - daysElapsed);
@@ -379,7 +390,7 @@ export function useMeterData() {
       recommendedDailyAllowance,
       status,
     };
-  }, [activeMonthData, settings.tariffPerKwh, settings.monthlyTargetKwh, settings.targetNature]);
+  }, [activeMonthData, settings.tariffPerKwh, settings.monthlyTargetKwh, settings.targetNature, settings.billingCutoffDay]);
 
   // Weekday distribution
   const weekdayStats: WeekdayStats[] = useMemo(() => {

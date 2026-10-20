@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dailyTargetKwh: 5.0,
   monthlyTargetKwh: 140,
   targetNature: 'ceiling',
+  billingCutoffDay: undefined,
   interpolateSkippedDays: true,
   theme: 'dark',
 };

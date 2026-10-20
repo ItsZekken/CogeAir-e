@@ -10,7 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import type { ProcessedReading, AppSettings, MeterReading } from '../types';
-import { getDayOfWeekName } from '../utils/calculations';
+import { getDayOfWeekName, getBillingPeriodInfo } from '../utils/calculations';
 
 interface HistoryViewProps {
   processedReadings: ProcessedReading[];
@@ -37,13 +37,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [importNotice, setImportNotice] = useState<{ text: string; error?: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Group readings by Month (descending)
+  // Group readings by Billing Period / Month (descending)
   const reversedReadings = [...processedReadings].reverse();
 
   const grouped = reversedReadings.reduce((acc, curr) => {
-    const monthKey = curr.date.slice(0, 7); // YYYY-MM
-    if (!acc[monthKey]) acc[monthKey] = [];
-    acc[monthKey].push(curr);
+    const periodKey = getBillingPeriodInfo(curr.date, settings.billingCutoffDay).key;
+    if (!acc[periodKey]) acc[periodKey] = [];
+    acc[periodKey].push(curr);
     return acc;
   }, {} as Record<string, ProcessedReading[]>);
 

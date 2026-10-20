@@ -93,8 +93,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (currentPeriodKey === 'all' || !currentPeriodKey) {
       return dailySeries;
     }
-    return dailySeries.filter((d) => d.date.startsWith(currentPeriodKey));
-  }, [dailySeries, currentPeriodKey]);
+    const found = availableMonths.find((m) => m.key === currentPeriodKey);
+    return found ? found.points : dailySeries.filter((d) => d.date.startsWith(currentPeriodKey));
+  }, [dailySeries, currentPeriodKey, availableMonths]);
 
   const activeSummary = useMemo(() => {
     if (currentPeriodKey === 'all' || !currentPeriodKey) return totalSummary;

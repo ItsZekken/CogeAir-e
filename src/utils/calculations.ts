@@ -1,4 +1,4 @@
-import type { MeterReading, ProcessedReading, DailyDataPoint } from '../types';
+import type { MeterReading, ProcessedReading, DailyDataPoint, BillingPeriodInfo } from '../types';
 
 export function parseDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -39,6 +39,74 @@ export function getMonthName(yearMonth: string): string {
   if (parts.length < 2) return yearMonth;
   const mIdx = parseInt(parts[1], 10) - 1;
   return MONTH_NAMES[mIdx] || yearMonth;
+}
+
+export function getBillingPeriodInfo(dateStr: string, cutoffDay?: number): BillingPeriodInfo {
+  const [yearStr, monthStr, dayStr] = dateStr.split('-');
+  const y = parseInt(yearStr, 10);
+  const m = parseInt(monthStr, 10);
+  const d = parseInt(dayStr, 10);
+
+  // If cutoffDay is not configured (or invalid), default to standard calendar month
+  if (!cutoffDay || cutoffDay <= 0 || cutoffDay > 31) {
+    const key = `${yearStr}-${monthStr}`;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    return {
+      key,
+      name: getMonthName(key),
+      label: `${getMonthName(key)} ${yearStr}`,
+      startDate: `${yearStr}-${monthStr}-01`,
+      endDate: `${yearStr}-${monthStr}-${String(daysInMonth).padStart(2, '0')}`,
+      totalDays: daysInMonth,
+    };
+  }
+
+  // If day > cutoffDay, the consumption belongs to the cycle ending in the next month
+  let cycleYear = y;
+  let cycleMonth = m;
+  if (d > cutoffDay) {
+    cycleMonth += 1;
+    if (cycleMonth > 12) {
+      cycleMonth = 1;
+      cycleYear += 1;
+    }
+  }
+
+  const prevYear = cycleMonth === 1 ? cycleYear - 1 : cycleYear;
+  const prevMonth = cycleMonth === 1 ? 12 : cycleMonth - 1;
+
+  // End date of cycle: in cycleYear, cycleMonth on cutoffDay (or max days in that month)
+  const daysInCycleMonth = new Date(cycleYear, cycleMonth, 0).getDate();
+  const endDay = Math.min(cutoffDay, daysInCycleMonth);
+
+  // Start date of cycle: in prevYear, prevMonth on cutoffDay + 1
+  const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+  const startDay = Math.min(cutoffDay + 1, daysInPrevMonth + 1);
+
+  let startDateStr: string;
+  let startD: Date;
+  if (startDay > daysInPrevMonth) {
+    startDateStr = `${cycleYear}-${String(cycleMonth).padStart(2, '0')}-01`;
+    startD = new Date(cycleYear, cycleMonth - 1, 1);
+  } else {
+    startDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+    startD = new Date(prevYear, prevMonth - 1, startDay);
+  }
+
+  const endDateStr = `${cycleYear}-${String(cycleMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+  const endD = new Date(cycleYear, cycleMonth - 1, endDay);
+  const diffTime = endD.getTime() - startD.getTime();
+  const totalDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+  const key = `${cycleYear}-${String(cycleMonth).padStart(2, '0')}`;
+  return {
+    key,
+    name: getMonthName(key),
+    label: `${getMonthName(key)} ${cycleYear}`,
+    startDate: startDateStr,
+    endDate: endDateStr,
+    totalDays,
+  };
 }
 
 const WEEKDAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
